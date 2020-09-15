@@ -1,5 +1,19 @@
+#!/usr/bin/env perl
+
+#
+# twitch_notify: notify when a twitch channel comes online
+#
+# Unfortunately, Twitch now requires OAuth for all API endpoints, despite
+# channel information being public:
+# https://discuss.dev.twitch.tv/t/requiring-oauth-for-helix-twitch-api-endpoints/23916
+#
+# By default, this script uses the Client ID of the Twitch Chat OAuth Password
+# Generator (https://twitchapps.com/tmi), since this is the recommended way to
+# get a token in the Twitch IRC Guide (https://dev.twitch.tv/docs/irc/guide)
 #
 # Usage:
+# * /set twitch_clientid "uo6dggojyb8d6soh92zknwmi5ej1q2"
+# * /set twitch_oauth "cfabdegwdoklmawdzdo98xt2fo512y"
 # * /set twitch_channels "channel1 channel2 channel3"
 # * /twitch_online to see which channels are online
 #
@@ -12,26 +26,23 @@ use strict;
 use warnings;
 
 use English qw( -no_match_vars );
-use HTTP::Tiny;
-use IO::Handle;
-use IPC::Open3;
+use HTTP::Tiny ();
+use IO::Handle qw(autoflush);
+use IPC::Open3 qw(open3);
 use Irssi;
-use JSON::PP;
+use JSON::PP qw(decode_json);
 use POSIX ();
 
-our $VERSION = '0.0.1';
+our $VERSION = '0.1.0';
 our %IRSSI   = (
     authors     => 'leocp1',
     name        => 'twitch_notify',
-    description => 'Notify when a twitch channel comes online'
-        . 'Uses Twitch v5 API',
+    description => 'Notify when a twitch channel comes online. '
+        . 'Uses Twitch Helix API.',
     license => 'Public Domain',
 );
 
 ## no critic (ProhibitConstantPragma) since Readonly is not in core perl
-
-# youtube-dl's Client ID
-use constant CLIENTID => 'kimne78kx3ncx6brgo4mv6wki5h1ko';
 
 # values for channel map
 use constant {
@@ -64,16 +75,19 @@ sub get_chan_names {
 
 sub call_api {
     my ($resource)     = @_;
-    my $endpointprefix = 'https://api.twitch.tv/kraken/';
+    my $endpointprefix = 'https://api.twitch.tv/helix/';
     my $jsonresp       = undef;
-    use Symbol 'gensym';
+    my $clientid       = Irssi::settings_get_str('twitch_clientid');
+    my $oauth          = Irssi::settings_get_str('twitch_oauth');
+    use Symbol qw(gensym);
     if ( not HTTP::Tiny::can_ssl() ) {
         my $pid = open3(
-            my $curl_in, my $curl_out, my $curl_err = gensym,
-            'curl',      '-f', '-L',
+            my $curl_in, my $curl_out,
+            my $curl_err = gensym, 'curl',
+            '-f',        '-L',
             '--request', 'GET',
-            '-H', 'Accept:application/vnd.twitchtv.v5+json; charset=UTF-8',
-            '-H', 'Client-ID:' . CLIENTID,
+            '-H',        'Authorization: Bearer ' . $oauth,
+            '-H',        'Client-ID:' . $clientid,
             $endpointprefix . $resource
         );
         waitpid $pid, 0;
@@ -89,7 +103,8 @@ sub call_api {
         my $resp = $http->get(
             "$endpointprefix" . $resource,
             {   headers => {
-                    'Client-ID' => CLIENTID,
+                    'Client-ID'     => $clientid,
+                    'Authorization' => 'Bearer ' . $oauth,
                     'Accept' =>
                         'application/vnd.twitchtv.v5+json; charset=UTF-8'
                 }
@@ -107,20 +122,19 @@ sub live_channels {
     my (@names) = @_;
     my @channels = ();
     use constant MAXUSERS   => 100;
-    use constant MAXSTREAMS => 25;
+    use constant MAXUSERIDS => 100;
     while ( my @name_slice = splice @names, 0, MAXUSERS ) {
-        my $users = join q{,}, @name_slice;
-        my @ids = eval {
-            my ($users_resp) = call_api( 'users?login=' . $users );
-            map { $_->{_id} } @{ decode_json($users_resp)->{users} };
+        my $users = join q{&}, ( map {"login=$_"} @name_slice );
+        my @ids   = eval {
+            my ($users_resp) = call_api( 'users?' . $users );
+            map { $_->{id} } @{ decode_json($users_resp)->{data} };
         };
-        while ( my @id_slice = splice @ids, 0, MAXSTREAMS ) {
-            my $streams = join q{,}, @id_slice;
+        while ( my @id_slice = splice @ids, 0, MAXUSERIDS ) {
+            my $streams    = join q{&}, ( map {"user_id=$_"} @id_slice );
             my @live_chans = eval {
-                my ($streams_resp)
-                    = call_api( 'streams?channel=' . $streams );
-                map { $_->{channel}->{name} }
-                    @{ decode_json($streams_resp)->{streams} };
+                my ($streams_resp) = call_api( 'streams?' . $streams );
+                map { lc $_->{user_name} }
+                    @{ decode_json($streams_resp)->{data} };
             };
             push @channels, @live_chans;
         }
@@ -215,6 +229,12 @@ sub _msg_warn {
 sub load {
     Irssi::settings_add_str( 'twitch_channel_notification',
         'twitch_channels', q{} );
+
+    # Default to Client ID of https://twitchapps.com/tmi/
+    Irssi::settings_add_str( 'twitch_channel_notification',
+        'twitch_clientid', 'q6batx0epp608isickayubi39itsckt' );
+    Irssi::settings_add_str( 'twitch_channel_notification',
+        'twitch_oauth', q{} );
     pipe $READHANDLE, $WRITEHANDLE;
     $WRITEHANDLE->autoflush();
     $REFRESHTAG
