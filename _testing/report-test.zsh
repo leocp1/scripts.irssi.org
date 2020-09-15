@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/usr/bin/env zsh
 
 local failmark="\e[31m✘\e[0m"
 local passmark="\e[32m✔\e[0m"

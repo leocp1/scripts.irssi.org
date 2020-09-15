@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/usr/bin/env zsh
 
 . ./_testing/_get_files_arr.zsh
 

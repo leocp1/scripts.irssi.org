@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/usr/bin/env zsh
 if [[ -z $REPO_LOGIN_TOKEN || -z $TRAVIS_REPO_SLUG ]] { exit 1 }
 autoload -Uz zargs
 

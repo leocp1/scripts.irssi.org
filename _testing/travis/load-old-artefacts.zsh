@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/usr/bin/env zsh
 if { ! git clone -q --depth 1 -b ci-artefacts git://github.com/$TRAVIS_REPO_SLUG.git old-artefacts } {
    mkdir old-artefacts
 }

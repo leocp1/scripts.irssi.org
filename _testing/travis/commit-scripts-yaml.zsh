@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/usr/bin/env zsh
 
 [[ -z $REPO_LOGIN_TOKEN ]] && exit
 [[ -z $TRAVIS_REPO_SLUG ]] && exit

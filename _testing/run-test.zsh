@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/usr/bin/env zsh
 local base_path="`pwd`"
 local test_script="$base_path/_testing/_irssi_test.pl"
 

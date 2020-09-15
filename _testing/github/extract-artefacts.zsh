@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/usr/bin/env zsh
 if [[ -z $GITHUB_TOKEN || -z $GITHUB_REPOSITORY ]] { exit 1 }
 autoload -Uz zargs
 

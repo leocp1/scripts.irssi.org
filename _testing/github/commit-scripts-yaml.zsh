@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/usr/bin/env zsh
 
 [[ -z $GITHUB_TOKEN ]] && exit
 
